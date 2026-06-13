@@ -65,7 +65,7 @@ export default function App() {
 
 | Prop | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `activeObject` | `'sphere' \| 'box' \| 'torus-knot' \| 'cylinder' \| 'klein-bottle' \| 'mobius-strip' \| 'low-poly-fabric' \| 'svg'` | `'sphere'` | The target 3D shape or geometry to render. |
+| `activeObject` | `SentientMeshShape` (e.g. `'sphere' \| 'box' \| 'torus-knot' \| 'cylinder' \| 'klein-bottle' \| 'mobius-strip' \| 'low-poly-fabric' \| 'svg' \| 'wormhole' \| 'black-hole' \| 'white-hole' \| 'torus' \| 'hyperboloid' \| 'dinis-surface' \| 'enneper-surface'`) | `'sphere'` | The target 3D shape or geometry to render. You can import the array of all available shapes using `SENTIENT_MESH_SHAPES` constant. |
 | `svgUrl` | `string` | `undefined` | Path to load the SVG file from (only used if `activeObject="svg"`). |
 | `complexity` | `'low' \| 'medium' \| 'high'` | `'high'` | Subdivision density of the geometry vertices. |
 | `darkMode` | `boolean` | `true` | Toggles the base wireframe color (White in dark mode, Black in light mode). |

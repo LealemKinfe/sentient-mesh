@@ -10,8 +10,28 @@ import { SentientShaderMaterial } from './shaders/SentientShaderMaterial';
 // Register the custom shader material with React Three Fiber
 extend({ SentientShaderMaterial });
 
+export const SENTIENT_MESH_SHAPES = [
+  'low-poly-fabric',
+  'sphere',
+  'box',
+  'torus-knot',
+  'cylinder',
+  'klein-bottle',
+  'mobius-strip',
+  'svg',
+  'wormhole',
+  'black-hole',
+  'white-hole',
+  'torus',
+  'hyperboloid',
+  'dinis-surface',
+  'enneper-surface'
+] as const;
+
+export type SentientMeshShape = typeof SENTIENT_MESH_SHAPES[number];
+
 export interface SentientMeshProps {
-  activeObject: 'low-poly-fabric' | 'sphere' | 'box' | 'torus-knot' | 'cylinder' | 'klein-bottle' | 'mobius-strip' | 'svg';
+  activeObject: SentientMeshShape;
   svgUrl?: string;
   complexity: 'low' | 'medium' | 'high';
   darkMode: boolean;
@@ -182,15 +202,108 @@ export default function SentientMesh({
       target.set(x, y, z);
     };
 
+    // Ellis Wormhole Throat
+    const wormholeFn = (u: number, v: number, target: THREE.Vector3) => {
+      const rho = (u - 0.5) * 4.0; // throat radial extent
+      const b = 0.55; // throat bottleneck radius
+      const r = Math.sqrt(rho * rho + b * b);
+      const theta = v * Math.PI * 2;
+      
+      const x = r * Math.cos(theta);
+      const y = r * Math.sin(theta);
+      const z = rho;
+      target.set(x, y, z);
+    };
+
+    // Black Hole gravity throat (funnel curving down)
+    const blackHoleFn = (u: number, v: number, target: THREE.Vector3) => {
+      const r_min = 0.35;
+      const r_max = 2.0;
+      const r = r_min + u * (r_max - r_min);
+      const theta = v * Math.PI * 2;
+      
+      const z = -1.8 * Math.sqrt((r_max - r) / (r_max - r_min));
+      const x = r * Math.cos(theta);
+      const y = r * Math.sin(theta);
+      target.set(x, y, z);
+    };
+
+    // White Hole gravity hill (funnel curving up)
+    const whiteHoleFn = (u: number, v: number, target: THREE.Vector3) => {
+      const r_min = 0.35;
+      const r_max = 2.0;
+      const r = r_min + u * (r_max - r_min);
+      const theta = v * Math.PI * 2;
+      
+      const z = 1.8 * Math.sqrt((r_max - r) / (r_max - r_min));
+      const x = r * Math.cos(theta);
+      const y = r * Math.sin(theta);
+      target.set(x, y, z);
+    };
+
+    // One-sheeted Hyperboloid throat
+    const hyperboloidFn = (u: number, v: number, target: THREE.Vector3) => {
+      const z = (u - 0.5) * 3.0; // height extent
+      const theta = v * Math.PI * 2;
+      const a = 0.7; // waist throat radius
+      const r = a * Math.sqrt(1.0 + z * z);
+      const x = r * Math.cos(theta);
+      const y = r * Math.sin(theta);
+      target.set(x, y, z);
+    };
+
+    // Dini's Surface (cosmic spiral ribbon)
+    const dinisFn = (u: number, v: number, target: THREE.Vector3) => {
+      u = u * 4.0 * Math.PI; // u in [0, 4pi]
+      v = v * 0.99 + 0.01; // v in (0, 1]
+      const a = 1.0;
+      const b = 0.15;
+      const sinU = Math.sin(u);
+      const cosU = Math.cos(u);
+      const sinV = Math.sin(v * Math.PI);
+      const cosV = Math.cos(v * Math.PI);
+      const logTan = Math.log(Math.tan(v * Math.PI * 0.5));
+      
+      const x = a * cosU * sinV;
+      const y = a * sinU * sinV;
+      const z = a * (cosV + logTan) + b * u;
+      
+      target.set(x * 1.2, y * 1.2, (z - 1.5) * 0.6);
+    };
+
+    // Enneper Surface (warped nebula minimal surface)
+    const enneperFn = (u: number, v: number, target: THREE.Vector3) => {
+      u = (u - 0.5) * 3.0;
+      v = (v - 0.5) * 3.0;
+      
+      const x = u - (u*u*u)/3.0 + u*v*v;
+      const y = v - (v*v*v)/3.0 + v*u*u;
+      const z = u*u - v*v;
+      
+      target.set(x * 0.5, y * 0.5, z * 0.5);
+    };
+
     const slices = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
     const stacks = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
 
     const kleinGeom = new ParametricGeometry(kleinFn, slices, stacks);
     const mobiusGeom = new ParametricGeometry(mobiusFn, slices, stacks);
+    const wormholeGeom = new ParametricGeometry(wormholeFn, slices, stacks);
+    const blackHoleGeom = new ParametricGeometry(blackHoleFn, slices, stacks);
+    const whiteHoleGeom = new ParametricGeometry(whiteHoleFn, slices, stacks);
+    const hyperboloidGeom = new ParametricGeometry(hyperboloidFn, slices, stacks);
+    const dinisGeom = new ParametricGeometry(dinisFn, slices, stacks);
+    const enneperGeom = new ParametricGeometry(enneperFn, slices, stacks);
 
     return {
       klein: kleinGeom,
       mobius: mobiusGeom,
+      wormhole: wormholeGeom,
+      blackHole: blackHoleGeom,
+      whiteHole: whiteHoleGeom,
+      hyperboloid: hyperboloidGeom,
+      dinis: dinisGeom,
+      enneper: enneperGeom,
     };
   }, [complexity]);
 
@@ -199,6 +312,12 @@ export default function SentientMesh({
     return () => {
       parametricGeometries.klein.dispose();
       parametricGeometries.mobius.dispose();
+      parametricGeometries.wormhole.dispose();
+      parametricGeometries.blackHole.dispose();
+      parametricGeometries.whiteHole.dispose();
+      parametricGeometries.hyperboloid.dispose();
+      parametricGeometries.dinis.dispose();
+      parametricGeometries.enneper.dispose();
     };
   }, [parametricGeometries]);
 
@@ -241,6 +360,29 @@ export default function SentientMesh({
       }
       case 'mobius-strip': {
         return <primitive object={parametricGeometries.mobius} attach="geometry" />;
+      }
+      case 'wormhole': {
+        return <primitive object={parametricGeometries.wormhole} attach="geometry" />;
+      }
+      case 'black-hole': {
+        return <primitive object={parametricGeometries.blackHole} attach="geometry" />;
+      }
+      case 'white-hole': {
+        return <primitive object={parametricGeometries.whiteHole} attach="geometry" />;
+      }
+      case 'torus': {
+        const radialSegments = complexity === 'low' ? 8 : complexity === 'medium' ? 16 : 32;
+        const tubularSegments = complexity === 'low' ? 24 : complexity === 'medium' ? 64 : 128;
+        return <torusGeometry args={[1.2, 0.4, radialSegments, tubularSegments]} />;
+      }
+      case 'hyperboloid': {
+        return <primitive object={parametricGeometries.hyperboloid} attach="geometry" />;
+      }
+      case 'dinis-surface': {
+        return <primitive object={parametricGeometries.dinis} attach="geometry" />;
+      }
+      case 'enneper-surface': {
+        return <primitive object={parametricGeometries.enneper} attach="geometry" />;
       }
       case 'sphere':
       default: {
