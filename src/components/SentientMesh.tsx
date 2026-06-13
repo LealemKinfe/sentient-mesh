@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame, extend, useLoader } from '@react-three/fiber';
-import { Center } from '@react-three/drei';
+
 import { SVGLoader, ParametricGeometry } from 'three-stdlib';
 import { SentientShaderMaterial } from './shaders/SentientShaderMaterial';
 
@@ -111,7 +111,7 @@ export default function SentientMesh({
   const meshRef = useRef<THREE.Mesh>(null);
 
   // 1. Handle SVG Loading safely (using rules of hooks - pass a fallback URL if svg is not selected)
-  const defaultSvgFallback = '/img/logo/SVG/SM Logo icon.svg';
+  const defaultSvgFallback = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="none"/></svg>';
   const urlToLoad = activeObject === 'svg' && svgUrl ? svgUrl : defaultSvgFallback;
   const svgData = useLoader(SVGLoader, urlToLoad);
 
@@ -202,7 +202,10 @@ export default function SentientMesh({
     };
   }, [parametricGeometries]);
 
-  // 4. Update shader time uniform on every frame — mesh/lines stay anchored, only vertices breathe
+  // 4. Compute rotation as a THREE.Euler so R3F applies it as an object property
+  const rotation = useMemo(() => new THREE.Euler(pitch, yaw, roll, 'XYZ'), [pitch, yaw, roll]);
+
+  // Apply time updates to the shader material on every frame
   useFrame((state) => {
     if (materialRef.current) {
       materialRef.current.uTime = state.clock.getElapsedTime();
@@ -271,29 +274,25 @@ export default function SentientMesh({
   if (activeObject === 'svg') {
     if (!edgesGeometry) return null;
     return (
-      <Center>
-        <lineSegments
-          ref={meshRef as any}
-          scale={[0.003, -0.003, 0.003]}
-          geometry={edgesGeometry}
-          rotation={[pitch, yaw, roll]}
-        >
-          {shaderEl}
-        </lineSegments>
-      </Center>
+      <lineSegments
+        ref={meshRef as any}
+        scale={[0.003, -0.003, 0.003]}
+        geometry={edgesGeometry}
+        rotation={rotation}
+      >
+        {shaderEl}
+      </lineSegments>
     );
   }
 
   return (
-    <Center>
-      <mesh
-        ref={meshRef}
-        scale={[1, 1, 1]}
-        rotation={[pitch, yaw, roll]}
-      >
-        {renderGeometry()}
-        {shaderEl}
-      </mesh>
-    </Center>
+    <mesh
+      ref={meshRef}
+      scale={[1, 1, 1]}
+      rotation={rotation}
+    >
+      {renderGeometry()}
+      {shaderEl}
+    </mesh>
   );
 }
