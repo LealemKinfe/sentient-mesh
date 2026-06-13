@@ -1,6 +1,6 @@
 {
   "name": "sentient-mesh",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "Customizable 3D sentient wireframe mesh and shader for React Three Fiber",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

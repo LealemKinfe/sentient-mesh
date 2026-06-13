@@ -174,152 +174,281 @@ export default function SentientMesh({
     return edges;
   }, [shapes, activeObject, complexity]);
 
-  // Parametric shape functions for mathematical structures
-  const parametricGeometries = useMemo(() => {
-    // Figure-8 Klein Bottle
-    const kleinFn = (u: number, v: number, target: THREE.Vector3) => {
-      u *= Math.PI * 2;
-      v *= Math.PI * 2;
-      
-      const r = 1.5;
-      const x = (r + Math.cos(u / 2) * Math.sin(v) - Math.sin(u / 2) * Math.sin(2 * v)) * Math.cos(u);
-      const y = (r + Math.cos(u / 2) * Math.sin(v) - Math.sin(u / 2) * Math.sin(2 * v)) * Math.sin(u);
-      const z = Math.sin(u / 2) * Math.sin(v) + Math.cos(u / 2) * Math.sin(2 * v);
-      
-      target.set(x * 0.9, y * 0.9, z * 0.9);
-    };
+  // Generate the active geometry dynamically and dispose of it on change to prevent leaks
+  const geometry = useMemo(() => {
+    let geom: THREE.BufferGeometry;
 
-    // Möbius Strip
-    const mobiusFn = (u: number, v: number, target: THREE.Vector3) => {
-      u = u - 0.5; // u is now in [-0.5, 0.5]
-      v = v * 2 * Math.PI;
+    switch (activeObject) {
+      case 'low-poly-fabric': {
+        const segments = complexity === 'low' ? 6 : complexity === 'medium' ? 24 : 60;
+        geom = new THREE.PlaneGeometry(3.0, 3.0, segments, segments);
+        break;
+      }
+      case 'box': {
+        const segments = complexity === 'low' ? 2 : complexity === 'medium' ? 6 : 12;
+        geom = new THREE.BoxGeometry(2.0, 2.0, 2.0, segments, segments, segments);
+        break;
+      }
+      case 'torus-knot': {
+        const p = 2;
+        const q = 3;
+        const tubularSegments = complexity === 'low' ? 32 : complexity === 'medium' ? 64 : 128;
+        const radialSegments = complexity === 'low' ? 4 : complexity === 'medium' ? 8 : 16;
+        geom = new THREE.TorusKnotGeometry(1.0, 0.35, tubularSegments, radialSegments, p, q);
+        break;
+      }
+      case 'cylinder': {
+        const radialSegments = complexity === 'low' ? 8 : complexity === 'medium' ? 32 : 64;
+        const heightSegments = complexity === 'low' ? 6 : complexity === 'medium' ? 24 : 48;
+        geom = new THREE.CylinderGeometry(0.8, 0.8, 2.2, radialSegments, heightSegments);
+        break;
+      }
+      case 'klein-bottle': {
+        const slices = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const stacks = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const kleinFn = (u: number, v: number, target: THREE.Vector3) => {
+          u *= Math.PI * 2;
+          v *= Math.PI * 2;
+          const r = 1.5;
+          const x = (r + Math.cos(u / 2) * Math.sin(v) - Math.sin(u / 2) * Math.sin(2 * v)) * Math.cos(u);
+          const y = (r + Math.cos(u / 2) * Math.sin(v) - Math.sin(u / 2) * Math.sin(2 * v)) * Math.sin(u);
+          const z = Math.sin(u / 2) * Math.sin(v) + Math.cos(u / 2) * Math.sin(2 * v);
+          target.set(x * 0.9, y * 0.9, z * 0.9);
+        };
+        geom = new ParametricGeometry(kleinFn, slices, stacks);
+        break;
+      }
+      case 'mobius-strip': {
+        const slices = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const stacks = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const mobiusFn = (u: number, v: number, target: THREE.Vector3) => {
+          u = u - 0.5;
+          v = v * 2 * Math.PI;
+          const a = 1.5;
+          const x = (a + u * Math.cos(v / 2)) * Math.cos(v);
+          const y = (a + u * Math.cos(v / 2)) * Math.sin(v);
+          const z = u * Math.sin(v / 2);
+          target.set(x, y, z);
+        };
+        geom = new ParametricGeometry(mobiusFn, slices, stacks);
+        break;
+      }
+      case 'wormhole': {
+        const slices = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const stacks = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const wormholeFn = (u: number, v: number, target: THREE.Vector3) => {
+          const rho = (u - 0.5) * 4.0;
+          const b = 0.55;
+          const r = Math.sqrt(rho * rho + b * b);
+          const theta = v * Math.PI * 2;
+          const x = r * Math.cos(theta);
+          const y = r * Math.sin(theta);
+          const z = rho;
+          target.set(x, y, z);
+        };
+        geom = new ParametricGeometry(wormholeFn, slices, stacks);
+        break;
+      }
+      case 'black-hole': {
+        const slices = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const stacks = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const blackHoleFn = (u: number, v: number, target: THREE.Vector3) => {
+          const theta = v * Math.PI * 2;
+          const a = 1.2; // Spheroid equatorial radius
+          const c = 0.68; // Spheroid polar radius
+          const R_inner = 1.7; // Disk inner edge
+          const R_outer = 3.6; // Disk outer edge
 
-      const a = 1.5; // major radius
-      const x = (a + u * Math.cos(v / 2)) * Math.cos(v);
-      const y = (a + u * Math.cos(v / 2)) * Math.sin(v);
-      const z = u * Math.sin(v / 2);
+          if (u <= 0.25) {
+            // 1. Oblate Spheroid (Event Horizon)
+            const t = u / 0.25;
+            const phi = t * Math.PI;
+            const x = a * Math.sin(phi) * Math.cos(theta);
+            const y = a * Math.sin(phi) * Math.sin(theta);
+            const z = c * Math.cos(phi);
+            target.set(x, y, z);
+          } else if (u <= 0.3) {
+            // 2. Inner transition (South Pole to flat disk inner edge)
+            const t = (u - 0.25) / 0.05;
+            const x = t * R_inner * Math.cos(theta);
+            const y = t * R_inner * Math.sin(theta);
+            const z = -c * (1.0 - t);
+            target.set(x, y, z);
+          } else if (u <= 0.55) {
+            // 3. Flat Accretion Disk (horizontal plane)
+            const t = (u - 0.3) / 0.25;
+            const r = R_inner + t * (R_outer - R_inner);
+            const x = r * Math.cos(theta);
+            const y = r * Math.sin(theta);
+            const z = 0;
+            target.set(x, y, z);
+          } else if (u <= 0.65) {
+            // 4. Outer transition twist (horizontal edge to vertical edge)
+            const t = (u - 0.55) / 0.1;
+            const angle = t * (Math.PI / 2);
+            const x = R_outer * Math.cos(theta);
+            const y = R_outer * Math.sin(theta) * Math.cos(angle);
+            const z = R_outer * Math.sin(theta) * Math.sin(angle);
+            target.set(x, y, z);
+          } else if (u <= 0.9) {
+            // 5. Lensed Vertical Ring
+            const t = (u - 0.65) / 0.25;
+            const r = R_outer - t * (R_outer - R_inner);
+            const x = r * Math.cos(theta);
+            const y = 0;
+            const z = r * Math.sin(theta);
+            target.set(x, y, z);
+          } else {
+            // 6. Return transition (vertical inner edge back to North Pole)
+            const t = (u - 0.9) / 0.1;
+            const r = R_inner * (1.0 - t);
+            const x = r * Math.cos(theta);
+            const y = 0;
+            const z = R_inner * Math.sin(theta) * (1.0 - t) + t * c;
+            target.set(x, y, z);
+          }
+        };
+        geom = new ParametricGeometry(blackHoleFn, slices, stacks);
+        break;
+      }
+      case 'white-hole': {
+        const slices = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const stacks = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const whiteHoleFn = (u: number, v: number, target: THREE.Vector3) => {
+          const theta = v * Math.PI * 2;
+          const a = 1.2; // Spheroid equatorial radius
+          const c = 0.68; // Spheroid polar radius
+          const R_inner = 1.7; // Disk inner edge
+          const R_outer = 3.6; // Disk outer edge
 
-      target.set(x, y, z);
-    };
+          if (u <= 0.25) {
+            // 1. Oblate Spheroid (Event Horizon)
+            const t = u / 0.25;
+            const phi = t * Math.PI;
+            const x = a * Math.sin(phi) * Math.cos(theta);
+            const y = a * Math.sin(phi) * Math.sin(theta);
+            const z = c * Math.cos(phi);
+            target.set(x, y, z);
+          } else if (u <= 0.3) {
+            // 2. Inner transition (South Pole to flat disk inner edge)
+            const t = (u - 0.25) / 0.05;
+            const x = t * R_inner * Math.cos(theta);
+            const y = t * R_inner * Math.sin(theta);
+            const z = -c * (1.0 - t);
+            target.set(x, y, z);
+          } else if (u <= 0.55) {
+            // 3. Flat Accretion Disk (horizontal plane)
+            const t = (u - 0.3) / 0.25;
+            const r = R_inner + t * (R_outer - R_inner);
+            const x = r * Math.cos(theta);
+            const y = r * Math.sin(theta);
+            const z = 0;
+            target.set(x, y, z);
+          } else if (u <= 0.65) {
+            // 4. Outer transition twist (horizontal edge to vertical edge with inverted rotation)
+            const t = (u - 0.55) / 0.1;
+            const angle = -t * (Math.PI / 2);
+            const x = R_outer * Math.cos(theta);
+            const y = R_outer * Math.sin(theta) * Math.cos(angle);
+            const z = R_outer * Math.sin(theta) * Math.sin(angle);
+            target.set(x, y, z);
+          } else if (u <= 0.9) {
+            // 5. Lensed Vertical Ring (negative/opposite orientation)
+            const t = (u - 0.65) / 0.25;
+            const r = R_outer - t * (R_outer - R_inner);
+            const x = r * Math.cos(theta);
+            const y = 0;
+            const z = -r * Math.sin(theta);
+            target.set(x, y, z);
+          } else {
+            // 6. Return transition (vertical inner edge back to North Pole)
+            const t = (u - 0.9) / 0.1;
+            const r = R_inner * (1.0 - t);
+            const x = r * Math.cos(theta);
+            const y = 0;
+            const z = -R_inner * Math.sin(theta) * (1.0 - t) + t * c;
+            target.set(x, y, z);
+          }
+        };
+        geom = new ParametricGeometry(whiteHoleFn, slices, stacks);
+        break;
+      }
+      case 'torus': {
+        const radialSegments = complexity === 'low' ? 8 : complexity === 'medium' ? 16 : 32;
+        const tubularSegments = complexity === 'low' ? 24 : complexity === 'medium' ? 64 : 128;
+        geom = new THREE.TorusGeometry(1.2, 0.4, radialSegments, tubularSegments);
+        break;
+      }
+      case 'hyperboloid': {
+        const slices = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const stacks = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const hyperboloidFn = (u: number, v: number, target: THREE.Vector3) => {
+          const z = (u - 0.5) * 3.0;
+          const theta = v * Math.PI * 2;
+          const a = 0.7;
+          const r = a * Math.sqrt(1.0 + z * z);
+          const x = r * Math.cos(theta);
+          const y = r * Math.sin(theta);
+          target.set(x, y, z);
+        };
+        geom = new ParametricGeometry(hyperboloidFn, slices, stacks);
+        break;
+      }
+      case 'dinis-surface': {
+        const slices = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const stacks = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const dinisFn = (u: number, v: number, target: THREE.Vector3) => {
+          u = u * 4.0 * Math.PI;
+          v = v * 0.99 + 0.01;
+          const a = 1.0;
+          const b = 0.15;
+          const sinU = Math.sin(u);
+          const cosU = Math.cos(u);
+          const sinV = Math.sin(v * Math.PI);
+          const cosV = Math.cos(v * Math.PI);
+          const logTan = Math.log(Math.tan(v * Math.PI * 0.5));
+          const x = a * cosU * sinV;
+          const y = a * sinU * sinV;
+          const z = a * (cosV + logTan) + b * u;
+          target.set(x * 1.2, y * 1.2, (z - 1.5) * 0.6);
+        };
+        geom = new ParametricGeometry(dinisFn, slices, stacks);
+        break;
+      }
+      case 'enneper-surface': {
+        const slices = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const stacks = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
+        const enneperFn = (u: number, v: number, target: THREE.Vector3) => {
+          u = (u - 0.5) * 3.0;
+          v = (v - 0.5) * 3.0;
+          const x = u - (u*u*u)/3.0 + u*v*v;
+          const y = v - (v*v*v)/3.0 + v*u*u;
+          const z = u*u - v*v;
+          target.set(x * 0.5, y * 0.5, z * 0.5);
+        };
+        geom = new ParametricGeometry(enneperFn, slices, stacks);
+        break;
+      }
+      case 'sphere':
+      default: {
+        const widthSegments = complexity === 'low' ? 8 : complexity === 'medium' ? 32 : 64;
+        const heightSegments = complexity === 'low' ? 6 : complexity === 'medium' ? 24 : 48;
+        geom = new THREE.SphereGeometry(1.8, widthSegments, heightSegments);
+        break;
+      }
+    }
 
-    // Ellis Wormhole Throat
-    const wormholeFn = (u: number, v: number, target: THREE.Vector3) => {
-      const rho = (u - 0.5) * 4.0; // throat radial extent
-      const b = 0.55; // throat bottleneck radius
-      const r = Math.sqrt(rho * rho + b * b);
-      const theta = v * Math.PI * 2;
-      
-      const x = r * Math.cos(theta);
-      const y = r * Math.sin(theta);
-      const z = rho;
-      target.set(x, y, z);
-    };
+    return geom;
+  }, [activeObject, complexity]);
 
-    // Black Hole gravity throat (funnel curving down)
-    const blackHoleFn = (u: number, v: number, target: THREE.Vector3) => {
-      const r_min = 0.35;
-      const r_max = 2.0;
-      const r = r_min + u * (r_max - r_min);
-      const theta = v * Math.PI * 2;
-      
-      const z = -1.8 * Math.sqrt((r_max - r) / (r_max - r_min));
-      const x = r * Math.cos(theta);
-      const y = r * Math.sin(theta);
-      target.set(x, y, z);
-    };
-
-    // White Hole gravity hill (funnel curving up)
-    const whiteHoleFn = (u: number, v: number, target: THREE.Vector3) => {
-      const r_min = 0.35;
-      const r_max = 2.0;
-      const r = r_min + u * (r_max - r_min);
-      const theta = v * Math.PI * 2;
-      
-      const z = 1.8 * Math.sqrt((r_max - r) / (r_max - r_min));
-      const x = r * Math.cos(theta);
-      const y = r * Math.sin(theta);
-      target.set(x, y, z);
-    };
-
-    // One-sheeted Hyperboloid throat
-    const hyperboloidFn = (u: number, v: number, target: THREE.Vector3) => {
-      const z = (u - 0.5) * 3.0; // height extent
-      const theta = v * Math.PI * 2;
-      const a = 0.7; // waist throat radius
-      const r = a * Math.sqrt(1.0 + z * z);
-      const x = r * Math.cos(theta);
-      const y = r * Math.sin(theta);
-      target.set(x, y, z);
-    };
-
-    // Dini's Surface (cosmic spiral ribbon)
-    const dinisFn = (u: number, v: number, target: THREE.Vector3) => {
-      u = u * 4.0 * Math.PI; // u in [0, 4pi]
-      v = v * 0.99 + 0.01; // v in (0, 1]
-      const a = 1.0;
-      const b = 0.15;
-      const sinU = Math.sin(u);
-      const cosU = Math.cos(u);
-      const sinV = Math.sin(v * Math.PI);
-      const cosV = Math.cos(v * Math.PI);
-      const logTan = Math.log(Math.tan(v * Math.PI * 0.5));
-      
-      const x = a * cosU * sinV;
-      const y = a * sinU * sinV;
-      const z = a * (cosV + logTan) + b * u;
-      
-      target.set(x * 1.2, y * 1.2, (z - 1.5) * 0.6);
-    };
-
-    // Enneper Surface (warped nebula minimal surface)
-    const enneperFn = (u: number, v: number, target: THREE.Vector3) => {
-      u = (u - 0.5) * 3.0;
-      v = (v - 0.5) * 3.0;
-      
-      const x = u - (u*u*u)/3.0 + u*v*v;
-      const y = v - (v*v*v)/3.0 + v*u*u;
-      const z = u*u - v*v;
-      
-      target.set(x * 0.5, y * 0.5, z * 0.5);
-    };
-
-    const slices = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
-    const stacks = complexity === 'low' ? 16 : complexity === 'medium' ? 40 : 80;
-
-    const kleinGeom = new ParametricGeometry(kleinFn, slices, stacks);
-    const mobiusGeom = new ParametricGeometry(mobiusFn, slices, stacks);
-    const wormholeGeom = new ParametricGeometry(wormholeFn, slices, stacks);
-    const blackHoleGeom = new ParametricGeometry(blackHoleFn, slices, stacks);
-    const whiteHoleGeom = new ParametricGeometry(whiteHoleFn, slices, stacks);
-    const hyperboloidGeom = new ParametricGeometry(hyperboloidFn, slices, stacks);
-    const dinisGeom = new ParametricGeometry(dinisFn, slices, stacks);
-    const enneperGeom = new ParametricGeometry(enneperFn, slices, stacks);
-
-    return {
-      klein: kleinGeom,
-      mobius: mobiusGeom,
-      wormhole: wormholeGeom,
-      blackHole: blackHoleGeom,
-      whiteHole: whiteHoleGeom,
-      hyperboloid: hyperboloidGeom,
-      dinis: dinisGeom,
-      enneper: enneperGeom,
-    };
-  }, [complexity]);
-
-  // Clean up geometries on unmount to avoid memory leaks
-  React.useEffect(() => {
+  // Clean up geometry when activeObject/complexity changes or on unmount
+  useEffect(() => {
     return () => {
-      parametricGeometries.klein.dispose();
-      parametricGeometries.mobius.dispose();
-      parametricGeometries.wormhole.dispose();
-      parametricGeometries.blackHole.dispose();
-      parametricGeometries.whiteHole.dispose();
-      parametricGeometries.hyperboloid.dispose();
-      parametricGeometries.dinis.dispose();
-      parametricGeometries.enneper.dispose();
+      if (geometry) {
+        geometry.dispose();
+      }
     };
-  }, [parametricGeometries]);
+  }, [geometry]);
 
   // 4. Compute rotation as a THREE.Euler so R3F applies it as an object property
   const rotation = useMemo(() => new THREE.Euler(pitch, yaw, roll, 'XYZ'), [pitch, yaw, roll]);
@@ -330,68 +459,6 @@ export default function SentientMesh({
       materialRef.current.uTime = state.clock.getElapsedTime();
     }
   });
-
-  // 5. Render appropriate geometry based on complexity & activeObject selection
-  const renderGeometry = () => {
-    switch (activeObject) {
-      case 'low-poly-fabric': {
-        const segments = complexity === 'low' ? 6 : complexity === 'medium' ? 24 : 60;
-        // Plane oriented in the viewport
-        return <planeGeometry args={[3.0, 3.0, segments, segments]} />;
-      }
-      case 'box': {
-        const segments = complexity === 'low' ? 2 : complexity === 'medium' ? 6 : 12;
-        return <boxGeometry args={[2.0, 2.0, 2.0, segments, segments, segments]} />;
-      }
-      case 'torus-knot': {
-        const p = 2;
-        const q = 3;
-        const tubularSegments = complexity === 'low' ? 32 : complexity === 'medium' ? 64 : 128;
-        const radialSegments = complexity === 'low' ? 4 : complexity === 'medium' ? 8 : 16;
-        return <torusKnotGeometry args={[1.0, 0.35, tubularSegments, radialSegments, p, q]} />;
-      }
-      case 'cylinder': {
-        const radialSegments = complexity === 'low' ? 8 : complexity === 'medium' ? 32 : 64;
-        const heightSegments = complexity === 'low' ? 6 : complexity === 'medium' ? 24 : 48;
-        return <cylinderGeometry args={[0.8, 0.8, 2.2, radialSegments, heightSegments]} />;
-      }
-      case 'klein-bottle': {
-        return <primitive object={parametricGeometries.klein} attach="geometry" />;
-      }
-      case 'mobius-strip': {
-        return <primitive object={parametricGeometries.mobius} attach="geometry" />;
-      }
-      case 'wormhole': {
-        return <primitive object={parametricGeometries.wormhole} attach="geometry" />;
-      }
-      case 'black-hole': {
-        return <primitive object={parametricGeometries.blackHole} attach="geometry" />;
-      }
-      case 'white-hole': {
-        return <primitive object={parametricGeometries.whiteHole} attach="geometry" />;
-      }
-      case 'torus': {
-        const radialSegments = complexity === 'low' ? 8 : complexity === 'medium' ? 16 : 32;
-        const tubularSegments = complexity === 'low' ? 24 : complexity === 'medium' ? 64 : 128;
-        return <torusGeometry args={[1.2, 0.4, radialSegments, tubularSegments]} />;
-      }
-      case 'hyperboloid': {
-        return <primitive object={parametricGeometries.hyperboloid} attach="geometry" />;
-      }
-      case 'dinis-surface': {
-        return <primitive object={parametricGeometries.dinis} attach="geometry" />;
-      }
-      case 'enneper-surface': {
-        return <primitive object={parametricGeometries.enneper} attach="geometry" />;
-      }
-      case 'sphere':
-      default: {
-        const widthSegments = complexity === 'low' ? 8 : complexity === 'medium' ? 32 : 64;
-        const heightSegments = complexity === 'low' ? 6 : complexity === 'medium' ? 24 : 48;
-        return <sphereGeometry args={[1.8, widthSegments, heightSegments]} />;
-      }
-    }
-  };
 
   const shaderEl = (
     /* @ts-ignore: Custom sentient shader registered via extend */
@@ -432,8 +499,8 @@ export default function SentientMesh({
       ref={meshRef}
       scale={[1, 1, 1]}
       rotation={rotation}
+      geometry={geometry}
     >
-      {renderGeometry()}
       {shaderEl}
     </mesh>
   );
